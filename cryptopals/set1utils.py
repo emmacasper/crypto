@@ -12,9 +12,7 @@ def hex2bytes(x):
 
 def base2int(s, alph):
     i = 0
-    print(alph)
     for c in s:
-        print(c)
         i *= len(alph)
         i += alph.index(c)
     return i
@@ -51,8 +49,6 @@ def hex2b64(x):
     x = hex2bytes(x)
     result = [chunk64(x[i*3:i*3+3]) for i in range(len(x)//3)]
     if len(x) % 3 != 0:
-        print('extra chunk')
-        print(b''.join(result))
         result.append(chunk64last(x[-(len(x)%3):]))
     return b''.join(result)
 
@@ -118,4 +114,10 @@ def single_key_breaker(s, alph, start=0, end=128):
     return besti, ms[besti], ls[besti]
 
 
+def repbxor(s, k):
+    l = int(len(s)/ len(k)) + 1
+    return bytexor(s, (k*l)[:len(s)])
+
+def rephxor(s, k):
+    return repbxor(hex2bytes(s), hex2bytes(k))
 
