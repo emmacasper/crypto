@@ -65,57 +65,57 @@ def hexxor(h1, h2):
     return b''.join([int2base(x, alph_h, 2) for x in bytexor(hex2bytes(h1), hex2bytes(h2))])
 
 
-eng_freq = {'a': 8.167, 'b': 1.492, 'c': 2.782, 'd': 4.253, 'e': 12.702,
-        'f': 2.228, 'g': 2.015, 'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772,
-        'l': 4.025, 'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095,
-        'r': 5.987, 's': 6.327, 't': 2.758, 'u': 2.758, 'v': 0.987, 'w': 2.360,
-        'x': 0.150, 'y': 1.974, 'z': 0.074}
+eng_freq = {ord(k): v/100 for (k, v) in {'a': 8.167, 'b': 1.492,
+        'c': 2.782, 'd': 4.253, 'e': 12.702, 'f': 2.228, 'g': 2.015,
+        'h': 6.094, 'i': 6.966, 'j': 0.153, 'k': 0.772, 'l': 4.025, 
+        'm': 2.406, 'n': 6.749, 'o': 7.507, 'p': 1.929, 'q': 0.095,
+        'r': 5.987, 's': 6.327, 't': 2.758, 'u': 2.758, 'v': 0.987,
+        'w': 2.360, 'x': 0.150, 'y': 1.974, 'z': 0.074}.items()}
 
-eng_lfreq = {ord(k): math.log(v/100) for (k, v) in eng_freq.items()}
+def bhattacharyya_coefficient(d1, d2):
+    """Computes the bhattacharyya coefficient of two distributions
+    Distributions should have the same keyset to work properly
+    (if d2 has extra keys it will not break but will be incorrect).
 
-def likelihood(s, alph, oov):
-    """Returns the log likelihood of the text s given the
-    character distributions alph (log probabilities).
-    oov is a function which takes a character which is used
-    to handle characters not in alph
+    Bhattacharyya coefficient is sum over x of prob(x) in each distribution
+
+    *** do not call this if no keys overlap. bad things will happen.
     """
-    s = [alph[c] if c in alph.keys() else oov(c) for c in s]
-    #print(s)
-    return sum(s)
+    coeff = sum([math.sqrt(d1[k]*d2.get(k, 0)) for k in d1.keys()])
+    return coeff
 
-def make_punctuation_normalizer(alph):
-    """ignores case, (updates alph to ignore case by adding items)
-    assigns ok probability to spaces,
-    somewhat low probability to common punctuation,
-    and very low probability to everything else.
-    *** the distribution no longer sums to 1 though
-
-    *** need to decide on exact values for oov
-    I would think we like common punctuation more than this
-    but 8*m is not enough to keep from getting gibberish
-    ** fine tune this on later problems?
+def frequency_fit(alph, sample):
+    """A somewhat sketchy measure of how likely the sample came from
+    the alphabet distribution.
+    (likely in the colloquial sense, not the probabilistic one)
+    Some penalty for characters not in alph, excluding spaces
+    Ignores case
     """
-    m = min(alph.values())
-    alph.update({k-32: v for (k, v) in alph.items()})
-    def oov(c):
-        if c == b' ':
-            return 0
-        if c in b',.?!()&-+=\'":;':
-            return 9*m
-        else:
-            return 10*m
-    print('updated keys to include uppercase:', len(alph.keys()))
-    return oov
+    # number of non-space characters
+    l = len(sample) - len(bytes(sample).split()) + 1
+    sample = [x for x in bytes(sample).lower()]
+    counter = {}
+    for c in sample:
+        if c in alph.keys():
+            counter[c] = counter.get(c, 0) + 1
+    # make it a distribution, sort of
+    scount = {k: v/l for (k, v) in counter.items()}
+    if len(scount.keys()) == 0:
+        # if we actually call bhattacharyya distance it will cry
+        # pick a big number because we do not like this.
+        return 0
+    return bhattacharyya_coefficient(alph, scount)
+    
 
-def guess_single_key(s, alph, oov, start=0, end=128):
-    """Returns the max likelihood estimate of key xor'ed with s
+def single_key_breaker(s, alph, start=0, end=128):
+    """Returns the best estimate of key xor'ed with s
     using alph as character likelihoods
-    and oov as oov function.
     checks values between start and end (default 0, 128)
     """
     ms = [bytexor(s, [k]*len(s)) for k in range(start, end)]
-    ls = [likelihood(m, alph, oov) for m in ms]
+    ls = [frequency_fit(alph, m) for m in ms]
     besti = max(range(start, end), key=lambda x: ls[x-start])
     return besti, ms[besti], ls[besti]
+
 
 
